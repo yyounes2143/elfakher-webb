@@ -299,7 +299,6 @@ if (!window.cart) {
 
             if (item.type === 'fabric') {
                 if (item.color) parts.push(`اللون: ${item.color}`);
-                // if (item.unit) parts.push(`الوحدة: ${item.unit}`);
                 return parts.join(' | ');
             }
 
