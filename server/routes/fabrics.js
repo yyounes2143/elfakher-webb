@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
+const cache = require('../config/cache');
 const { authMiddleware } = require('../middleware/auth');
 
 // ===============================================
@@ -16,7 +17,7 @@ router.get('/', async (req, res) => {
         const { active_only } = req.query;
 
         let query = `
-            SELECT 
+            SELECT
                 f.id,
                 f.name,
                 f.name_ar,
@@ -67,7 +68,7 @@ router.get('/', async (req, res) => {
 router.get('/stats', async (req, res) => {
     try {
         const result = await db.query(`
-            SELECT 
+            SELECT
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE is_active = true) as active,
                 COUNT(*) FILTER (WHERE stock_level = 'low_stock') as low_stock,
@@ -96,7 +97,7 @@ router.get('/colors', async (req, res) => {
         const { include_inactive } = req.query;
 
         let query = `
-            SELECT 
+            SELECT
                 id,
                 name_en as name,
                 name_ar,
@@ -145,7 +146,7 @@ router.post('/colors', authMiddleware, async (req, res) => {
 
         // التحقق من عدم وجود اللون مسبقاً
         const checkColor = await db.query(`
-            SELECT id FROM catalog.colors 
+            SELECT id FROM catalog.colors
             WHERE name_ar = $1 OR hex_code = $2
         `, [name_ar, hex_code]);
 
@@ -161,6 +162,9 @@ router.post('/colors', authMiddleware, async (req, res) => {
             VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
         `, [name_ar, name_en || name_ar, hex_code, image_url, is_active !== false, sort_order || 0]);
+
+        // مسح الكاش
+        cache.clearTailoringOptions();
 
         res.status(201).json({
             success: true,
@@ -204,6 +208,9 @@ router.put('/colors/:id', authMiddleware, async (req, res) => {
             });
         }
 
+        // مسح الكاش
+        cache.clearTailoringOptions();
+
         res.json({
             success: true,
             message: 'تم تحديث اللون بنجاح',
@@ -228,8 +235,8 @@ router.delete('/colors/:id', authMiddleware, async (req, res) => {
 
         // التحقق من استخدام اللون في منتجات
         const checkUsage = await db.query(`
-            SELECT COUNT(*) as count 
-            FROM catalog.inventory 
+            SELECT COUNT(*) as count
+            FROM catalog.inventory
             WHERE color_id = $1
         `, [id]);
 
@@ -238,6 +245,9 @@ router.delete('/colors/:id', authMiddleware, async (req, res) => {
             await db.query(`
                 UPDATE catalog.colors SET is_active = false WHERE id = $1
             `, [id]);
+
+            // مسح الكاش
+            cache.clearTailoringOptions();
 
             return res.json({
                 success: true,
@@ -255,6 +265,9 @@ router.delete('/colors/:id', authMiddleware, async (req, res) => {
                 message: 'اللون غير موجود'
             });
         }
+
+        // مسح الكاش
+        cache.clearTailoringOptions();
 
         res.json({
             success: true,

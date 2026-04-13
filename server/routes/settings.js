@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
+const cache = require('../config/cache');
 const { authMiddleware } = require('../middleware/auth');
 
 // ===============================================
@@ -128,6 +129,16 @@ router.put('/:key', authMiddleware, async (req, res) => {
 // ===============================================
 router.get('/tailoring/options', async (req, res) => {
     try {
+        // محاولة الحصول على البيانات من الكاش
+        const cachedData = cache.getTailoringOptions();
+        if (cachedData) {
+            return res.json({
+                success: true,
+                data: cachedData,
+                source: 'cache'
+            });
+        }
+
         const [collars, sleeves, buttons, sizes, colors] = await Promise.all([
             db.query(`SELECT * FROM catalog.collar_types WHERE is_active = true ORDER BY name_ar`),
             db.query(`SELECT * FROM catalog.sleeve_types WHERE is_active = true ORDER BY name_ar`),
@@ -136,15 +147,21 @@ router.get('/tailoring/options', async (req, res) => {
             db.query(`SELECT * FROM catalog.colors WHERE is_active = true ORDER BY sort_order`)
         ]);
 
+        const responseData = {
+            collars: collars.rows,
+            sleeves: sleeves.rows,
+            buttons: buttons.rows,
+            sizes: sizes.rows,
+            colors: colors.rows
+        };
+
+        // حفظ في الكاش
+        cache.setTailoringOptions(responseData);
+
         res.json({
             success: true,
-            data: {
-                collars: collars.rows,
-                sleeves: sleeves.rows,
-                buttons: buttons.rows,
-                sizes: sizes.rows,
-                colors: colors.rows
-            }
+            data: responseData,
+            source: 'db'
         });
     } catch (error) {
         console.error('Error fetching tailoring options:', error);
@@ -161,7 +178,7 @@ router.get('/tailoring/options', async (req, res) => {
 router.get('/shipping/wilayas', async (req, res) => {
     try {
         const result = await db.query(`
-            SELECT 
+            SELECT
                 w.id,
                 w.code,
                 w.name_ar,
