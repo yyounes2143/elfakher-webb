@@ -1,0 +1,8 @@
+node_modules/
+*.log
+benchmark_results.txt
+final_benchmark_results.txt
+server/benchmark.js
+server/mock_benchmark.js
+server/server.log
+server.log
