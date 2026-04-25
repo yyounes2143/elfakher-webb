@@ -224,17 +224,29 @@ router.put('/shipping/wilayas/bulk', authMiddleware, async (req, res) => {
             });
         }
 
-        let updated = 0;
-        for (const w of wilayas) {
-            if (w.id && w.shipping_cost !== undefined) {
-                await db.query(`
-                    UPDATE shipping.wilayas SET
-                        shipping_cost = $1
-                    WHERE id = $2
-                `, [parseFloat(w.shipping_cost) || 0, w.id]);
-                updated++;
-            }
+        const validWilayas = wilayas.filter(w => w.id && w.shipping_cost !== undefined);
+
+        if (validWilayas.length === 0) {
+            return res.json({
+                success: true,
+                message: 'لم يتم تحديث أي ولاية',
+                updated: 0
+            });
         }
+
+        const ids = validWilayas.map(w => w.id);
+        const costs = validWilayas.map(w => parseFloat(w.shipping_cost) || 0);
+
+        const result = await db.query(`
+            UPDATE shipping.wilayas AS w SET
+                shipping_cost = data.shipping_cost
+            FROM (
+                SELECT * FROM unnest($1::uuid[], $2::decimal[]) AS t(id, shipping_cost)
+            ) AS data
+            WHERE w.id = data.id
+        `, [ids, costs]);
+
+        const updated = result.rowCount;
 
         res.json({
             success: true,
