@@ -16,10 +16,8 @@ module.exports = {
     getTailoringOptions: () => {
         const now = Date.now();
         if (cache.tailoringOptions && (now - cache.lastFetched < cache.TTL)) {
-            console.log('Cache Hit: tailoringOptions');
             return cache.tailoringOptions;
         }
-        console.log('Cache Miss: tailoringOptions');
         return null;
     },
 
@@ -29,7 +27,6 @@ module.exports = {
     setTailoringOptions: (data) => {
         cache.tailoringOptions = data;
         cache.lastFetched = Date.now();
-        console.log('Cache Set: tailoringOptions');
     },
 
     /**
@@ -38,6 +35,5 @@ module.exports = {
     clearTailoringOptions: () => {
         cache.tailoringOptions = null;
         cache.lastFetched = 0;
-        console.log('Cache Cleared: tailoringOptions');
     }
 };
