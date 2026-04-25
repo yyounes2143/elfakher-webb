@@ -219,10 +219,20 @@ const ui = {
             container.innerHTML = `
                 <tr><td colspan="7" style="text-align:center;padding:3rem;">
                     <span class="material-icons-outlined" style="font-size:2rem;color:var(--admin-muted);">inbox</span>
-                    <p style="color:var(--admin-muted);margin-top:0.5rem;">${message}</p>
+                    <p style="color:var(--admin-muted);margin-top:0.5rem;">${ui.escapeHTML(message)}</p>
                 </td></tr>
             `;
         }
+    },
+
+    /**
+     * Escape HTML to prevent XSS
+     */
+    escapeHTML(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 };
 
@@ -583,10 +593,102 @@ function updatePagination(pagination, type) {
 /**
  * View customer details
  */
-function viewCustomer(id) {
-    // TODO: Implement modal or navigate to detail page
-    console.log('View customer:', id);
-    showNotification('جاري فتح تفاصيل العميل...');
+async function viewCustomer(id) {
+    console.log('Viewing customer:', id);
+    const modal = document.getElementById('customerDetailsModal');
+    if (!modal) return;
+
+    try {
+        // Show notification or loader
+        if (typeof showNotification === 'function') {
+            showNotification('جاري تحميل تفاصيل العميل...', 'info');
+        }
+
+        // Fetch customer details
+        const response = await api.getCustomer(id);
+        const customer = response.data;
+
+        // 1. Populate Basic Info
+        const nameEl = document.getElementById('detail-customer-name');
+        if (nameEl) nameEl.textContent = customer.full_name || `${customer.first_name} ${customer.last_name}`;
+
+        const emailEl = document.getElementById('detail-customer-email');
+        if (emailEl) emailEl.textContent = customer.email || '-';
+
+        const phoneEl = document.getElementById('detail-customer-phone');
+        if (phoneEl) phoneEl.textContent = customer.phone || '-';
+
+        const joinedEl = document.getElementById('detail-customer-joined');
+        if (joinedEl) joinedEl.textContent = ui.formatDate(customer.created_at);
+
+        const statusEl = document.getElementById('detail-customer-status');
+        if (statusEl) {
+            statusEl.innerHTML = customer.is_active ?
+                '<span class="status-badge delivered">نشط</span>' :
+                '<span class="status-badge cancelled">غير نشط</span>';
+        }
+
+        // 2. Avatar
+        const avatarEl = document.getElementById('customer-avatar');
+        if (avatarEl) {
+            avatarEl.textContent = ui.getInitials(customer.full_name || `${customer.first_name} ${customer.last_name}`);
+            avatarEl.style.backgroundColor = ui.getAvatarColor(customer.full_name || `${customer.first_name} ${customer.last_name}`);
+        }
+
+        // 3. Stats
+        const ordersCountEl = document.getElementById('detail-total-orders');
+        if (ordersCountEl) ordersCountEl.textContent = customer.total_orders || 0;
+
+        const spentEl = document.getElementById('detail-total-spent');
+        if (spentEl) spentEl.textContent = ui.formatPrice(customer.total_spent || 0);
+
+        // 4. Addresses
+        const addressListEl = document.getElementById('customer-addresses-list');
+        if (addressListEl) {
+            if (customer.addresses && customer.addresses.length > 0) {
+                addressListEl.innerHTML = customer.addresses.map(addr => `
+                    <div class="detail-item-card ${addr.is_default ? 'default' : ''}">
+                        <h4>${ui.escapeHTML(addr.label || 'عنوان')}</h4>
+                        <p>${ui.escapeHTML(addr.address.street || '')}</p>
+                        <p>${ui.escapeHTML(addr.address.city || '')}, ${ui.escapeHTML(addr.address.wilaya_code || '')}</p>
+                        ${addr.address.postal_code ? `<p>الرمز البريدي: ${ui.escapeHTML(addr.address.postal_code)}</p>` : ''}
+                        ${addr.address.notes ? `<p style="font-style:italic;margin-top:0.5rem;">ملاحظات: ${ui.escapeHTML(addr.address.notes)}</p>` : ''}
+                    </div>
+                `).join('');
+            } else {
+                addressListEl.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--admin-muted);">لا توجد عناوين مسجلة</p>';
+            }
+        }
+
+        // 5. Measurements
+        const measurementsListEl = document.getElementById('customer-measurements-list');
+        if (measurementsListEl) {
+            if (customer.measurements && customer.measurements.length > 0) {
+                measurementsListEl.innerHTML = customer.measurements.map(m => `
+                    <div class="detail-item-card ${m.is_default ? 'default' : ''}">
+                        <h4>${ui.escapeHTML(m.label || 'مقاس')}</h4>
+                        <div class="measurement-row"><span>الطول:</span><span>${m.measurements.full_length || '-'} سم</span></div>
+                        <div class="measurement-row"><span>الصدر:</span><span>${m.measurements.chest || '-'} سم</span></div>
+                        <div class="measurement-row"><span>الكتف:</span><span>${m.measurements.shoulder_width || '-'} سم</span></div>
+                        <div class="measurement-row"><span>الكم:</span><span>${m.measurements.sleeve_length || '-'} سم</span></div>
+                        <div class="measurement-row"><span>الرقبة:</span><span>${m.measurements.neck || '-'} سم</span></div>
+                        <div class="measurement-row"><span>المعصم:</span><span>${m.measurements.wrist || '-'} سم</span></div>
+                        ${m.notes ? `<p style="font-style:italic;margin-top:0.5rem;font-size:0.75rem;">ملاحظات: ${ui.escapeHTML(m.notes)}</p>` : ''}
+                    </div>
+                `).join('');
+            } else {
+                measurementsListEl.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--admin-muted);">لا توجد مقاسات مسجلة</p>';
+            }
+        }
+
+        // Open Modal
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+
+    } catch (error) {
+        console.error('Error viewing customer:', error);
+        alert('فشل في تحميل تفاصيل العميل');
+    }
 }
 
 // Store current order ID for modal actions
